@@ -1,0 +1,16 @@
+# Large files and datasets
+dataset.zip
+HatefulMemes/
+
+# Python
+__pycache__/
+*.pyc
+*.ipynb_checkpoints
+.env
+venv/
+env/
+
+# OS specific
+.DS_Store
+desktop.ini
+Thumbs.db

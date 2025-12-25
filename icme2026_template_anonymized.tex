@@ -1,0 +1,501 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{bm}
+\usepackage{array}
+\usepackage{makecell}
+\usepackage{tabularx}
+
+% =========================
+% Theorem/Claim/Hypothesis numbering + formatting (auto)
+% Fix: make cleveref distinguish Lemma/Claim/Hypothesis even with shared numbering
+% =========================
+
+% Theorem machinery
+\usepackage{amsthm}
+
+% Make shared-counter theorem-like environments produce correct reference “types”
+\usepackage{aliascnt}
+
+\DeclareMathOperator{\Cov}{Cov}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\spanop}{span}
+
+% Hyperlinks + smart references (recommended)
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink,capitalize,noabbrev]{cleveref}
+
+% ---------- Theorem styles ----------
+% (1) Main results: italic body
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]      % Theorem 2.1, 2.2, ...
+
+\newaliascnt{lemma}{theorem}
+\newtheorem{lemma}[lemma]{Lemma}
+\aliascntresetthe{lemma}
+
+\newaliascnt{proposition}{theorem}
+\newtheorem{proposition}[proposition]{Proposition}
+\aliascntresetthe{proposition}
+
+\newaliascnt{corollary}{theorem}
+\newtheorem{corollary}[corollary]{Corollary}
+\aliascntresetthe{corollary}
+
+% (2) Paper-specific logical units: same numbering as theorem
+\newaliascnt{hypothesis}{theorem}
+\newtheorem{hypothesis}[hypothesis]{Hypothesis}
+\aliascntresetthe{hypothesis}
+
+\newaliascnt{claim}{theorem}
+\newtheorem{claim}[claim]{Claim}
+\aliascntresetthe{claim}
+
+% (3) Definitions / assumptions: upright body
+\theoremstyle{definition}
+\newaliascnt{definition}{theorem}
+\newtheorem{definition}[definition]{Definition}
+\aliascntresetthe{definition}
+
+\newaliascnt{assumption}{theorem}
+\newtheorem{assumption}[assumption]{Assumption}
+\aliascntresetthe{assumption}
+
+% (4) Remarks: upright + smaller emphasis
+\theoremstyle{remark}
+\newaliascnt{remark}{theorem}
+\newtheorem{remark}[remark]{Remark}
+\aliascntresetthe{remark}
+
+% ---------- cleveref names ----------
+\crefname{theorem}{Theorem}{Theorems}
+\crefname{lemma}{Lemma}{Lemmas}
+\crefname{proposition}{Proposition}{Propositions}
+\crefname{corollary}{Corollary}{Corollaries}
+\crefname{hypothesis}{Hypothesis}{Hypotheses}
+\crefname{claim}{Claim}{Claims}
+\crefname{definition}{Definition}{Definitions}
+\crefname{assumption}{Assumption}{Assumptions}
+\crefname{remark}{Remark}{Remarks}
+
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{ICME 2026 Paper Title}
+
+\author{Anonymous ICME submission}
+
+\maketitle
+
+\begin{abstract}
+This document is a model and instructions for \LaTeX.
+This and the IEEEtran.cls file define the components of your paper [title, text, heads, etc.]. *CRITICAL: Do Not Use Symbols, Special Characters, Footnotes, 
+or Math in Paper Title or Abstract. The abstract should contain about 100 to 150 words, and should be identical to the abstract text submitted electronically. 
+\end{abstract}
+
+\begin{IEEEkeywords}
+component, formatting, style, styling, insert
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+Images in the wild often carry high-level harmful semantics such as hate, violence, or biased cues, and these semantics can leak into the responses of vision--language systems even when the user query is benign.
+Our goal is to filter out such harmful semantics \emph{without} destroying low-level visual content that is necessary for normal perception and downstream reasoning.
+
+Existing solutions are unsatisfactory, either because they are too coarse or because they require heavy system changes.
+Pixel-space obfuscation such as mosaic or blur removes harmful cues only by destroying image content, and it frequently discards task-relevant details.
+Training-based alignment or safety finetuning on the vision encoder or the entire VLM introduces substantial computation and maintenance cost, and it can degrade open-world generalization.
+Adding extra detectors such as OCR or safety classifiers increases latency and system complexity, while providing limited control over how much semantic information is actually removed.
+These limitations motivate intervention at the vision encoder \emph{intermediate representation}, which is the narrow interface through which visual semantics are passed to the language model: compared to pixel editing or weight updates, a linear feature transform at this interface is the smallest controllable intervention, enabling selective suppression of an attribute subspace while preserving most background structure used for general perception.
+
+We propose a training-free \emph{spectral filtering} method that operates directly on high-level intermediate features of a pretrained vision encoder.
+Given a reference feature collection and a target feature collection associated with an attribute of interest, we estimate covariances $(\Sigma_s,\Sigma_h)$, perform safe whitening, compute the generalized spectrum, and apply a simple per-eigenvalue shrinkage to obtain a filtered feature $z'$.
+At inference time, the transform is a fixed sequence of matrix--vector multiplications and element-wise scaling, yielding low overhead.
+
+Our theoretical analysis explains why such a simple transform can reliably erase implicit semantics.
+Alignment-style image--text pretraining compresses predictive semantic factors into linearly readable directions in the visual representation space.
+When an attribute is predictable under text supervision, it induces a low-rank covariance shift in high-level features, producing a small number of eigenvalue spikes after safe whitening.
+Minimizing safe-metric distortion while penalizing attribute-associated quadratic energy yields a closed-form spectral shrinkage rule, which selectively suppresses the spiked directions with explicit energy and fidelity expressions.
+
+In summary, we introduce (i) a training-free intermediate-feature filtering method for removing harmful visual semantics, (ii) a low-cost inference procedure with minimal change under a safe metric, and (iii) a unified theoretical chain from alignment training to generalized spectral spikes to closed-form shrinkage.
+
+\section{Related Work}
+\label{sec:related_work}
+
+\subsection{Intermediate Representations in Transformer Models}
+A common finding across Transformer-based models is that many properties are recoverable from intermediate representations using simple linear probes, suggesting that these representations contain linearly accessible structure \cite{HewittManning2019StructuralProbe,HewittLiang2019ControlTasks,Belinkov2022Probing}. Related analyses also study how attention and layerwise activations relate to linguistic or semantic patterns \cite{Clark2019BERTLookAt,VigBelinkov2019AttentionStructure}. Beyond probing, representation editing and concept removal methods aim to suppress a specified attribute while minimally changing the representation, often via linear transformations or subspace projections \cite{Ravfogel2020INLP,Ravfogel2022LACE,Belrose2023LEACE}. Our work is aligned with this line, but targets visual encoder features inside VLMs and motivates a covariance-spectrum viewpoint that yields a training-free closed-form transform.
+
+\subsection{Vision Encoders in VLMs and Contrastive Alignment Training}
+Many modern VLMs use a pretrained vision encoder trained by image--text alignment objectives \cite{Radford2021CLIP,Jia2021ALIGN,Zhai2022LiT,Zhai2023SigLIP}. Such dual-encoder training makes image features directly comparable with text features through an inner product, which supports zero-shot transfer and also influences the geometry of high-level visual features. On top of these encoders, instruction-tuned VLMs connect the visual encoder to a language model using a learned projector that maps visual features into the language model input space \cite{Liu2023LLaVA,Li2024LLaVAOneVision}. In this setting, interventions on intermediate visual features can change what semantics are available to the projector and the language model, which motivates studying controlled feature transforms at the visual-encoder level.
+
+
+\section{Methodology}
+\subsection{Method Overview}
+\label{sec:method_overview}
+\textbf{Reference and target feature collections.}
+We assume access to two sets of visual features extracted from the same visual encoder:
+(i) a \emph{reference} set, and
+(ii) a \emph{target} set associated with the attribute of interest.
+These features can be collected offline by forwarding images through the visual encoder and recording representations at a chosen high-level layer.
+
+\textbf{Covariance estimation and whitening.}
+From the reference feature set, we estimate the empirical covariance matrix $\Sigma_s\in\mathbb{R}^{d\times d}$.
+From the target feature set, we estimate the empirical covariance matrix $\Sigma_h$.
+We then compute a whitening transform based on $\Sigma_s$.
+Specifically, we perform an eigendecomposition
+\begin{equation}
+\Sigma_s = V\,\mathrm{diag}(\sigma)\,V^\top    
+\end{equation}
+where $\sigma_i\ge 0$ are the eigenvalues and $V$ is an orthogonal matrix.
+The whitening matrix is defined as
+\begin{equation}
+W = \Sigma_s^{-1/2} := V\,\mathrm{diag}\!\left((\sigma+\varepsilon)^{-1/2}\right)V^\top
+\end{equation}
+where a small $\varepsilon>0$ is added for numerical stability.
+This transform maps reference features to a space with approximately identity covariance.
+
+
+\textbf{Generalized spectral decomposition.} Using the whitening transform, we form the whitened target covariance
+\begin{equation}
+\Lambda = W \Sigma_h W^\top
+\end{equation}
+We compute its eigendecomposition
+\begin{equation}
+\Lambda = U\,\mathrm{diag}(\lambda)\,U^\top 
+\end{equation}
+
+where $\lambda_i$ and $U$ denote the eigenvalues and eigenvectors, respectively.
+This step identifies a set of orthogonal directions in feature space that characterize variance differences between the target and reference distributions.
+
+\textbf{Spectral filtering.} Given a visual representation $z$, we first whiten and rotate it:
+\begin{equation}
+\hat z = U^\top W z
+\end{equation}
+We then apply a coordinate-wise spectral scaling
+\begin{equation}
+\hat z_i' = \frac{\beta}{\lambda_i+\beta}\,\hat z_i   
+\end{equation}
+
+where $\beta>0$ is a scalar hyperparameter controlling the strength of suppression.
+Finally, the filtered representation is mapped back to the original space:
+\begin{equation}
+z' = W^{-1} U \hat z'    
+\end{equation}
+
+
+\textbf{Implementation remarks.}
+In practice, covariance estimation and spectral decomposition are performed once and cached.
+The Inference-time filtering operation itself consists of a sequence of matrix--vector multiplications and element-wise scaling, which means that the intermediate process overhead is relatively low.
+All experiments in this work use the same procedure, with $\beta$ selected based on validation performance.
+
+\subsection{Theoretical Analysis}
+\label{sec:theoretical_analysis}
+
+\paragraph{Goal}
+We explain why a simple eigenvalue reshaping applied to an intermediate vision-encoder feature can suppress an implicit semantic attribute while preserving most generic visual structure.
+The logic chain is:
+(i) alignment-based image--text pretraining organizes predictive semantics into a small linear subspace,
+(ii) an attribute that is predictable from text induces a low-rank covariance shift in high-level visual features,
+(iii) safe whitening converts this shift into a small number of eigenvalue spikes in a whitened covariance,
+(iv) a quadratic objective that balances safe-metric fidelity and target energy yields a closed-form spectral shrinkage that down-weights precisely those spiked directions.
+
+\paragraph{Unified setup}
+Let $x\in\mathcal{X}$ and $t\in\mathcal{T}$.
+A dual encoder produces $v_\theta(x),u_\phi(t)\in\mathbb{R}^d$ and normalized embeddings
+$\tilde v(x)=v_\theta(x)/\|v_\theta(x)\|$,
+$\tilde u(t)=u_\phi(t)/\|u_\phi(t)\|$.
+A common score is cosine similarity with temperature $\tau>0$,
+\begin{equation}
+s(x,t)=\frac{1}{\tau}\langle \tilde v(x),\tilde u(t)\rangle .
+\label{eq:score_inner}
+\end{equation}
+Given a minibatch $\{(x_i,t_i)\}_{i=1}^B$, define $y_{ij}=+1$ if $i=j$ and $y_{ij}=-1$ otherwise, and optimize
+\begin{equation}
+\mathcal{L}=\sum_{i=1}^B\sum_{j=1}^B \ell\!\left(y_{ij}\big(s(x_i,t_j)-b\big)\right),
+\label{eq:unified_contrastive}
+\end{equation}
+where $\ell$ is monotone decreasing and $b$ is optional.
+This form covers pairwise-sigmoid objectives and softmax-normalized contrastive objectives in the geometric sense needed here: increasing similarity for matched pairs and decreasing similarity for mismatched pairs.
+
+\paragraph{Alignment training yields a low-dimensional semantic subspace}
+We write a more general score as $s(x,t)=g(v_\theta(x),u_\phi(t))$ with $g$ differentiable.
+For an image embedding $v_i:=v_\theta(x_i)$, the gradient has the form
+\begin{equation}
+\nabla_{v_i}\mathcal{L}
+=\sum_{j=1}^B \alpha_{ij}\,\nabla_{v} g(v_i,u_j),
+\label{eq:grad_general_g}
+\end{equation}
+for coefficients $\alpha_{ij}$ determined by $\ell$ and the pair labels.
+When $g$ is bilinear (including inner product), $\nabla_v g(v,u)$ is linear in $u$:
+\begin{equation}
+g(v,u)=v^\top G u
+\quad\Longrightarrow\quad
+\nabla_v g(v,u)=G u .
+\label{eq:bilinear_grad}
+\end{equation}
+When $g$ is an inner product followed by a shallow head, local linearization around a working point $(v_0,u_0)$ gives
+\begin{equation}
+g(v,u)\approx g(v_0,u_0) + \langle J_v(v_0,u_0), v-v_0\rangle + \langle J_u(v_0,u_0), u-u_0\rangle ,
+\label{eq:local_linearization}
+\end{equation}
+so $\nabla_v g(v,u)$ lies in a low-dimensional span that is driven by text-side features through training.
+Together with \eqref{eq:grad_general_g}, this implies that alignment training continuously shapes image representations along directions induced by the text representations, so semantic factors that help pair discrimination are encoded in a small linear subspace that is readable by inner products with text-induced directions.
+
+\paragraph{Attribute signal from text induces an attribute direction in the image embedding space}
+Let $h\in\{0,1\}$ be a binary attribute and assume the text distribution depends on $h$:
+\begin{equation}
+\delta_u:=\mathbb{E}[\tilde u(t)\mid h=1]-\mathbb{E}[\tilde u(t)\mid h=0]\neq 0 .
+\label{eq:delta_u}
+\end{equation}
+Let $\mathcal{U}:=\mathrm{span}\{\tilde u(t):t\in\mathcal{T}\}$.
+Since $\delta_u\in\mathcal{U}$, take $w_h\propto \delta_u$.
+Alignment training makes $\langle \tilde v(x),w_h\rangle$ vary with $h$ in distribution, so $w_h$ acts as an attribute-related direction in the image embedding space.
+
+\paragraph{From an attribute readout to a low-rank covariance shift at an intermediate layer.}
+Let $z\in\mathbb{R}^d$ denote the chosen high-layer (intermediate) representation in the vision encoder.
+For ViT-style vision encoders used in VLMs, the path from $z$ to the final normalized embedding $\tilde v(x)$ includes pooling and a linear projection, followed by normalization; around typical operating points, we use a local linear readout
+\begin{equation}
+\tilde v(x)\approx M z ,
+\label{eq:linear_readout_z}
+\end{equation}
+for some matrix $M$ (absorbing pooling/projection and local linearization).
+Define the pulled-back attribute direction
+\begin{equation}
+a:=M^\top w_h .
+\label{eq:pullback_a}
+\end{equation}
+Then the attribute score satisfies
+\begin{equation}
+\langle \tilde v(x), w_h\rangle \approx \langle z, a\rangle .
+\label{eq:score_in_z}
+\end{equation}
+We model the attribute effect on $z$ as a low-dimensional modulation:
+\begin{equation}
+z = z_0 + A\gamma
+\label{eq:low_rank_modulation}
+\end{equation}
+where $\mathrm{rank}(A)=r\ll d, \mathrm{Cov}(z_0\mid h)=\Sigma_0, \mathrm{Cov}(\gamma\mid h)=\Delta_h\succeq 0$ with $\mathbb{E}[\gamma\mid h]=0$.
+This model is consistent with \eqref{eq:score_in_z} when $a\in\mathrm{col}(A)$, since $\langle z,a\rangle$ depends on $\gamma$ along the same low-dimensional subspace.
+From \eqref{eq:low_rank_modulation}, the conditional covariance of $z$ satisfies
+\begin{equation}
+\Sigma_h:=\mathrm{Cov}(z\mid h)=\Sigma_0 + A\Delta_h A^\top,
+\label{eq:sigma_h_low_rank}
+\end{equation}
+and the group difference is
+\begin{equation}
+\Sigma_{1}-\Sigma_{0}=A(\Delta_{1}-\Delta_{0})A^\top,\qquad
+\mathrm{rank}(\Sigma_{1}-\Sigma_{0})\le r.
+\label{eq:delta_sigma_rank_r}
+\end{equation}
+This step explains why comparing two groups (reference versus target) is informative: the shared background term $\Sigma_0$ cancels, leaving a low-rank attribute-induced component.
+
+\paragraph{Safe whitening reveals eigenvalue spikes}
+Let $\Sigma_s$ be the covariance from a reference (safe) feature collection at the chosen layer, and let $\Sigma_h$ be the covariance from a target (attribute) collection.
+Define the safe-whitening transform
+\begin{equation}
+W:=\Sigma_s^{-1/2},
+\label{eq:W_def}
+\end{equation}
+and the whitened target covariance
+\begin{equation}
+\Lambda:=W\Sigma_hW^\top.
+\label{eq:Lambda_def}
+\end{equation}
+When $\Sigma_h=\Sigma_s+\Delta$ with $\mathrm{rank}(\Delta)\le r$, then
+\begin{equation}
+\Lambda = I + W\Delta W^\top,\qquad
+\mathrm{rank}(\Lambda-I)\le r,
+\label{eq:Lambda_low_rank}
+\end{equation}
+so only $r$ eigen-directions can deviate from the background $I$.
+Let the eigendecomposition be
+\begin{equation}
+\Lambda = U\,\mathrm{diag}(\lambda)\,U^\top .
+\label{eq:Lambda_eig}
+\end{equation}
+The directions with $\lambda_i>1$ correspond to target-amplified variance directions, which align with the attribute subspace under \eqref{eq:delta_sigma_rank_r}--\eqref{eq:Lambda_low_rank}.
+
+\paragraph{Eigenvalue reshaping from a quadratic objective}
+Given a feature $z$, we construct a filtered feature $z'$ by solving
+\begin{equation}
+\min_{z'\in\mathbb{R}^d}\ 
+\frac{1}{2}\,\|W(z'-z)\|_2^2
++\frac{1}{2\beta}\,(W z')^\top \Lambda (W z'),
+\qquad \beta>0.
+\label{eq:Pbeta}
+\end{equation}
+The first term measures change under the safe Mahalanobis geometry induced by $\Sigma_s$.
+The second term penalizes energy along target-amplified directions through $\Lambda$.
+
+Let $r=Wz$ and $r'=Wz'$.
+Since $W$ is invertible (or using the Moore--Penrose pseudoinverse when $\Sigma_s$ is singular), \eqref{eq:Pbeta} is equivalent to
+\begin{equation}
+\min_{r'\in\mathbb{R}^d}\ 
+\frac{1}{2}\,\|r'-r\|_2^2
++\frac{1}{2\beta}\,{r'}^\top \Lambda r' .
+\label{eq:Pbeta_r}
+\end{equation}
+In the eigenbasis of $\Lambda$, define $\hat z:=U^\top r$ and $\hat z':=U^\top r'$.
+Using $U^\top U=I$ and \eqref{eq:Lambda_eig},
+\begin{equation}
+\|r'-r\|_2^2=\|\hat z'-\hat z\|_2^2,\qquad
+{r'}^\top \Lambda r'=\sum_{i=1}^d \lambda_i(\hat z_i')^2,
+\label{eq:decouple_terms}
+\end{equation}
+so the objective decouples across coordinates:
+\begin{equation}
+\min_{\hat z'\in\mathbb{R}^d}\ \sum_{i=1}^d
+\left[
+\frac{1}{2}(\hat z_i'-\hat z_i)^2+\frac{1}{2\beta}\lambda_i(\hat z_i')^2
+\right].
+\label{eq:decoupled}
+\end{equation}
+Setting derivatives to zero yields the closed-form shrinkage
+\begin{equation}
+\hat z_i'=\frac{\beta}{\lambda_i+\beta}\,\hat z_i,
+\qquad
+D:=\mathrm{diag}\!\left(\frac{\beta}{\lambda+\beta}\right).
+\label{eq:shrinkage}
+\end{equation}
+Mapping back gives the spectral transform
+\begin{equation}
+z' = W^{-1} U D U^\top W z .
+\label{eq:zprime_closed_form}
+\end{equation}
+By \eqref{eq:Lambda_low_rank}, only a small number of $\lambda_i$ deviate from $1$.
+Equation \eqref{eq:shrinkage} therefore applies strong attenuation on the few spiked directions ($\lambda_i\gg 1$) while leaving the bulk near-background directions ($\lambda_i\approx 1$) close to identity scaling.
+
+\paragraph{Coordinate-wise fidelity and suppression}
+Define the target energy and safe-metric distortion as
+\begin{equation}
+E_h(z') := (Wz')^\top \Lambda (Wz')=\sum_{i=1}^d \lambda_i(\hat z_i')^2,
+\end{equation}
+\begin{equation}
+\Delta_s(z',z):=\|W(z'-z)\|_2^2=\sum_{i=1}^d (\hat z_i'-\hat z_i)^2.
+\label{eq:energy_distortion_defs}
+\end{equation}
+Substituting \eqref{eq:shrinkage} gives
+\begin{equation}
+E_h(z')=\sum_{i=1}^d \lambda_i\Big(\frac{\beta}{\lambda_i+\beta}\Big)^2 \hat z_i^2,
+\end{equation}
+\begin{equation}
+\Delta_s(z',z)=\sum_{i=1}^d \Big(\frac{\lambda_i}{\lambda_i+\beta}\Big)^2 \hat z_i^2.
+\label{eq:energy_distortion_closed}
+\end{equation}
+These expressions quantify the trade-off controlled by $\beta$ and connect eigenvalue reshaping to low-rank attribute structure through the spiked eigenvalues of $\Lambda$.
+
+\section{Ablation and Sensitivity Studies}
+\subsection{Sensitivity and Ablation Studies}
+\label{sec:ablation}
+
+To further understand the behavior and robustness of the proposed energy-based feature filtering, we conduct a series of targeted sensitivity experiments. These experiments are designed to isolate the effects of key design choices while keeping the backbone model and training protocol fixed. Quantitative results are reported on Hateful Memes for safety evaluation and VQAv2 for general visual–language utility.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{IEEE Conference Template - ICME 2026/figures/sensitivityExp/combined_sensitivity_analysis.pdf}
+    \caption{Beta Sensitivity}
+    \label{fig:comb_sensitivity}
+\end{figure}
+
+\paragraph{Filtering strength $\beta$.}
+We first study the sensitivity to the filtering strength $\beta$, which controls the degree of spectral shrinkage applied to harmful directions.
+By sweeping $\beta$ from no filtering to strong filtering at inference time, we examine the trade-off between harmful-content suppression and task utility.
+This experiment evaluates whether the method provides a smooth and controllable safety--utility trade-off rather than a brittle on/off behavior.
+The results are summarized in Figure~\ref{fig:beta_sensitivity}.  
+\emph{[Results and analysis omitted for brevity.]}
+
+\paragraph{Injection layer.}
+We next evaluate the impact of the injection location within the visual encoder.
+The filtering module is inserted at different depths, ranging from intermediate layers to the final visual representation.
+This experiment tests the hypothesis that high-level visual features are more aligned with harmful semantic cues, while earlier features are more tied to low-level perception.
+Figure~\ref{fig:comb_sensitivity} reports the performance across layers.  
+\emph{[Results and analysis omitted for brevity.]}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{IEEE Conference Template - ICME 2026//figures//sensitivityExp/sample_size_stability.pdf}
+    \caption{Covariance Establishment Size}
+    \label{fig:covariance_size}
+\end{figure}
+
+\paragraph{Covariance estimation size.}
+Since the method relies on second-order statistics, we analyze its sensitivity to the number of samples used to estimate the safe and harmful covariance matrices.
+We vary the size of the reference and target sets while keeping all other factors fixed.
+This experiment evaluates the statistical stability of the learned filtering directions and whether reliable performance can be achieved with limited data.
+Results are shown in Figure~\ref{fig:covariance_size}.  
+\emph{[Results and analysis omitted for brevity.]}
+
+\paragraph{Reference set definition.}
+We further examine how the choice of the reference (safe) set affects the learned filtering geometry.
+Specifically, we compare using non-hateful samples from Hateful Memes versus images from a generic VQA dataset as the reference distribution.
+This experiment probes the robustness of the method to domain shifts in the definition of ``safe'' visual content.
+Figure~\ref{fig:comb_sensitivity} presents the comparison.  
+\emph{[Results and analysis omitted for brevity.]}
+
+\begin{table}
+\caption{Estimated overhead of reference fitting and inference-time filtering.}
+\centering
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.08}
+\small
+\begin{tabularx}{\columnwidth}{%
+l
+>{\raggedright\arraybackslash}X
+>{\raggedright\arraybackslash}X
+>{\raggedright\arraybackslash}X
+>{\raggedright\arraybackslash}X
+>{\raggedright\arraybackslash}X}
+\hline
+Setting &
+What is measured &
+Extra compute &
+Extra data movement &
+Extra persistent memory &
+Added latency \\
+\hline
+Baseline &
+vision forward &
+-- &
+-- &
+-- &
+$0$ \\
+Filtered &
+vision forward + intervention &
+$\approx 1.70\times 10^{9}$ FLOPs / image &
+$\approx 0$ (if matrices cached on GPU) &
+$\approx 3.83$ MiB / layer &
+$\approx 0.1$--$1.0$ ms / image (device-cached) \\
+Reference fit&
+Estimate $\tau$ from safe images &
+$\approx 1.70\times 10^{12}$ FLOPs total &
+$\approx 5.06$ GB total &
+Reservoir $\approx 0.46$ MiB / layer &
+-- \\
+\hline
+\end{tabularx}
+\label{fig:infer_overhead}
+\end{table}
+
+\paragraph{Overhead.}
+Finally, we evaluate its inference-time overhead. We estimate the overhead of reference fitting and inference-time filtering under our implementation setting ($B{=}16$, $T{=}576$, $d{=}1152$, $k{=}384$, $C_{\text{tok}}{=}120{,}000$).
+Using the same filtering configuration, we measure additional latency and memory cost introduced by the filtering operation.
+Table~\ref{fig:infer_overhead} shows that the filter adds only a small per-image latency and a few MiB of persistent state while preserving the main vision-forward computation, indicating that the intervention is lightweight and has limited impact on overall performance.
+
+\bibliographystyle{IEEEbib}
+\bibliography{icme2026references}
+
+
+\vspace{12pt}
+\color{red}
+IEEE conference templates contain guidance text for composing and formatting conference papers. Please ensure that all template text is removed from your conference paper prior to submission to the conference. Failure to remove the template text from your paper may result in your paper not being published.
+
+\end{document}
